@@ -7,7 +7,7 @@ const request = require('request').defaults({ encoding : null });
 const client = new Discord.Client();
 const fs = require('fs');
 
-client.login(process.env.DISCORD_API_KEY);
+client.login("MzExNjAzMjI1Mjg1MzYxNjY0.C_kI9Q.bmm42-gZtSo4My_5UuKgvnJq5yw");
 
 // ALL allowed exts need to be 4 characters to allow for playing of 4-length extensions, until I think of a better solution(if there is one).
 const allowedExtensions = [".MP3", ".OGG", ".WAV", "FLAC", "MIDI", ".WMA", ".M4A"];
