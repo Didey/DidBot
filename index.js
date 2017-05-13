@@ -183,6 +183,7 @@ function replaceface(message, args)
 
 function handleFaces(message, arg)
 {
+	console.log("HANDLE" + arg);
 	cv.readImage(arg, function(err, im) {
 			// When all object detection is done, not just after every one. Whoops.
 			im.detectObject(cv.FACE_CASCADE, {}, function(err, faces) {
@@ -205,7 +206,7 @@ function handleFaces(message, arg)
 
 
 							arguments[x].scaleToFit(faces[x]["width"], faces[x]["height"]);
-							image.blit(arguments[x], faces[x]["x"], faces[x]["y"]);
+							image.composite(arguments[x], faces[x]["x"], faces[x]["y"]);
 
 						}
 					}).then( () => {
