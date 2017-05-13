@@ -1,13 +1,19 @@
 const ytdl = require ('ytdl-core');
 const Discord = require('discord.js');
+const Jimp = require('jimp');
+const cv = require('opencv');
+const glob = require('glob');
+const request = require('request').defaults({ encoding : null });
 const client = new Discord.Client();
+const fs = require('fs');
 
 client.login(process.env.DISCORD_API_KEY);
 
 // ALL allowed exts need to be 4 characters to allow for playing of 4-length extensions, until I think of a better solution(if there is one).
-const allowedExtensions = [".MP3", ".OGG", ".WAV", "FLAC", "MIDI", ".WMA"];
+const allowedExtensions = [".MP3", ".OGG", ".WAV", "FLAC", "MIDI", ".WMA", ".M4A"];
 const commandList = ["trump", "play", "stop", "pause", "resume"];
-const prefix = ".";
+const faceList = glob.sync("faces/*.*");
+const prefix = "?";
 const streamVolume = 0.25;
 
 client.on('message', (message) => {
@@ -49,6 +55,10 @@ function processCommands(message, args)
 	{
 		help(message, args);
 	}
+	else if(checkCommand(message, "replaceface"))
+	{
+		replaceface(message, args);
+	}
 }
 
 function checkCommand(message, command)
@@ -74,6 +84,14 @@ function checkToPlayAttachment(message)
 				message.member.voiceChannel.join().then(connection => {
 					let voiceDispatch = connection.playArbitraryInput(streamURL);
 					voiceDispatch.setVolume(streamVolume);
+					if(message.deletable)
+					{
+						message.delete();
+					} 
+					else 
+					{
+						message.channel.send("Can't delete the file, perhaps a lack of permissions?");
+					}
 				}).catch(console.log);
 			}
 			else
@@ -139,6 +157,48 @@ function trump(message, args)
 
 function replaceface(message, args)
 {
+	let imageFileName = args[0].split('/').pop();
+	console.log(imageFileName);
+	// Have to download the image, openCV can't work with an image buffer.
+	request(args[0]).pipe(fs.createWriteStream(imageFileName)).on('finish', () => {
+		cv.readImage(imageFileName, function(err, im) {
+			// When all object detection is done, not just after every one. Whoops.
+ 			im.detectObject(cv.FACE_CASCADE, {}, function(err, faces) {
+    			console.log(faces);
+				// Do all processing here, kinda annoying with the way async JS works, but I'll manage.
+
+
+				let repImage = Jimp.read(args[0]).then( (image) => {
+					image.greyscale();
+				});
+				
+				let faceImagePromises = [];
+				let faceImageIndex = 0;
+
+				for(i = 0; i < faces.length; i++)
+				{
+					faceImagePromises.push(Jimp.read(faceList[Math.floor(Math.random()*faceList.length)]));
+				}
+
+				Promise.all(faceImagePromises).then( () => {
+					// arguments[0] is the image object, returned by the original Jimp.read() promise.
+					if(arguments[0])
+					{
+						arguments[0].scaleToFit(faces[faceImageIndex]["width"], faces[faceImageIndex]["height"]);
+						repImage.blit(arguments[0], faces[faceImageIndex]["x"], faces[faceImageIndex]["y"]);
+					}
+					faceImageIndex++;
+				}).then( () => {
+					repImage.write(imageFileName).then( () => {
+						client.sendFile(message.channel, imageFileName, imageFileName);	
+					});	
+				});
+				
+  			});
+		})
+	})
+
+
 
 }
 
@@ -150,8 +210,7 @@ function play(message, args)
 	// Can't play anything from no URL, drop the command.
 	if(!args[0])
 	{
-		message.channel.send("You need to put a URL to play from.");
-		return;
+		return message.channel.send("You need to put a URL to play from.");
 	}
 
 	let ytdlStream = ytdl(args[0], {
