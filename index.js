@@ -6,6 +6,8 @@ const glob = require('glob');
 const request = require('request').defaults({ encoding : null });
 const client = new Discord.Client();
 const fs = require('fs');
+const gm = require('gm');
+const path = require('path');
 
 client.login(process.env.DISCORD_API_KEY);
 
@@ -70,6 +72,7 @@ function checkToPlayAttachment(message)
 {
 	// Gets the URL of the attachment to check if it's an audio URL, and if it is, start a stream with it.
 	let streamURL = message.attachments.first().url;
+	console.log(streamURL);
 
 	// Just double checking that the streamURL isn't undefined.
 	if(streamURL)
@@ -111,7 +114,7 @@ function checkToPlayAttachment(message)
 
 function help(message, args)
 {
-	let reply = "```\n**COMMANDS**\n";
+	let reply = "```\nDideyBot version 0.0.1, prefix: " + prefix + "\n**COMMANDS**\n";
 	for(i = 0; i < commandList.length; i++)
 	{
 		reply += commandList[i] + "\n";
@@ -161,45 +164,61 @@ function replaceface(message, args)
 	console.log(imageFileName);
 	// Have to download the image, openCV can't work with an image buffer.
 	request(args[0]).pipe(fs.createWriteStream(imageFileName)).on('finish', () => {
-		cv.readImage(imageFileName, function(err, im) {
+		// If it's not a PNG, we need to convert it for transparency to work.
+		if(imageFileName.toUpperCase().substr(imageFileName.length - 3) === "PNG")
+		{
+			handleFaces(message, imageFileName);
+		}
+		else 
+		{
+			gm(imageFileName).write(path.parse(imageFileName).name + ".png", (err) => {
+				if(err) throw err;
+				imageFileName = path.parse(imageFileName).name + ".png";
+				handleFaces(message, imageFileName);
+			});
+		}
+		
+	})
+}
+
+function handleFaces(message, arg)
+{
+	cv.readImage(arg, function(err, im) {
 			// When all object detection is done, not just after every one. Whoops.
- 			im.detectObject(cv.FACE_CASCADE, {}, function(err, faces) {
-    			console.log(faces);
+			im.detectObject(cv.FACE_CASCADE, {}, function(err, faces) {
+				//console.log(faces);
 				// Do all processing here, kinda annoying with the way async JS works, but I'll manage.
 
 
-				let repImage = Jimp.read(args[0]).then( (image) => {
-					image.greyscale();
-				});
-				
-				let faceImagePromises = [];
-				let faceImageIndex = 0;
-
-				for(i = 0; i < faces.length; i++)
-				{
-					faceImagePromises.push(Jimp.read(faceList[Math.floor(Math.random()*faceList.length)]));
-				}
-
-				Promise.all(faceImagePromises).then( () => {
-					// arguments[0] is the image object, returned by the original Jimp.read() promise.
-					if(arguments[0])
+				let repImage = Jimp.read(arg).then( (image) => {
+					let faceImagePromises = [];
+					
+					for(i = 0; i < faces.length; i++)
 					{
-						arguments[0].scaleToFit(faces[faceImageIndex]["width"], faces[faceImageIndex]["height"]);
-						repImage.blit(arguments[0], faces[faceImageIndex]["x"], faces[faceImageIndex]["y"]);
+						faceImagePromises.push(Jimp.read(faceList[Math.floor(Math.random()*faceList.length)]));
 					}
-					faceImageIndex++;
-				}).then( () => {
-					repImage.write(imageFileName).then( () => {
-						client.sendFile(message.channel, imageFileName, imageFileName);	
-					});	
+
+					Promise.all(faceImagePromises).then( arguments => {
+						// arguments[0] is the image object, returned by the original Jimp.read() promise.
+						for(x = 0; x < faceImagePromises.length; x++)
+						{
+
+
+							arguments[x].scaleToFit(faces[x]["width"], faces[x]["height"]);
+							image.blit(arguments[x], faces[x]["x"], faces[x]["y"]);
+
+						}
+					}).then( () => {
+						image.write(arg, () => {
+							console.log("DAR SHE BLOWS:" + arg);
+							message.channel.send({ files : [arg]});								
+						});
+					}).catch( (err) => {
+						console.err(err);
+					});
 				});
-				
-  			});
+			});
 		})
-	})
-
-
-
 }
 
 function play(message, args) 
@@ -233,6 +252,7 @@ function play(message, args)
 
 function stop(message, args)
 {
+	message.channel.send("Stopping current audio stream.");
 	message.member.voiceChannel.leave();
 }
 
@@ -240,6 +260,7 @@ function pause(message, args)
 {
 	if(	message.member.voiceChannel.connection )
 	{
+		message.channel.send("Pausing current audio stream.");
 		message.member.voiceChannel.connection.dispatcher.pause();
 	}
 }
@@ -247,6 +268,7 @@ function pause(message, args)
 function resume(message, args)
 {	if(	message.member.voiceChannel.connection )
 	{
+		message.channel.send("Resuming current audio stream.");
 		message.member.voiceChannel.connection.dispatcher.resume();	
 	}
 }
