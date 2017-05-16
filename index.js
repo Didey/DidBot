@@ -87,7 +87,8 @@ function checkToPlayAttachment(message)
 				message.member.voiceChannel.join().then(connection => {
 					let voiceDispatch = connection.playArbitraryInput(streamURL);
 					voiceDispatch.setVolume(streamVolume);
-					
+					message.channel.send(`Now playing **${streamURL.split('/').pop()}** from **${message.author.username}**!`);
+					message.delete(1000);
 				}).catch(console.log);
 			}
 			else
@@ -229,8 +230,10 @@ function play(message, args)
 
 	let ytdlStream = ytdl(args[0], {
 		filter : 'audioonly',
+	}).on("error", function(err) {
+		message.channel.send("LOL u cause an error xD");
+		throw err;
 	});
-
 	if(message.member.voiceChannel) 
 	{
 		message.member.voiceChannel.join().then(connection => {
