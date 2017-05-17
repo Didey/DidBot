@@ -230,10 +230,11 @@ function play(message, args)
 
 	let ytdlStream = ytdl(args[0], {
 		filter : 'audioonly',
-	}).on("error", function(err) {
-		message.channel.send("LOL u cause an error xD");
-		throw err;
+	}).on("error", (error) => {
+		message.channel.send("There was an error with the URL stream.");
+		console.log(error);
 	});
+	
 	if(message.member.voiceChannel) 
 	{
 		message.member.voiceChannel.join().then(connection => {
