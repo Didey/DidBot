@@ -13,7 +13,7 @@ client.login("MzExNjAzMjI1Mjg1MzYxNjY0.C_kI9Q.bmm42-gZtSo4My_5UuKgvnJq5yw");
 
 // ALL allowed exts need to be 4 characters to allow for playing of 4-length extensions, until I think of a better solution(if there is one).
 const allowedExtensions = [".MP3", ".OGG", ".WAV", "FLAC", "MIDI", ".WMA", ".M4A"];
-const commandList = ["trump", "play", "stop", "pause", "resume"];
+const commandList = ["trump", "play", "stop", "pause", "resume", "replaceface"];
 const faceList = glob.sync("faces/*.*");
 const prefix = "?";
 const streamVolume = 0.25;
@@ -87,14 +87,8 @@ function checkToPlayAttachment(message)
 				message.member.voiceChannel.join().then(connection => {
 					let voiceDispatch = connection.playArbitraryInput(streamURL);
 					voiceDispatch.setVolume(streamVolume);
-					if(message.deletable)
-					{
-						message.delete();
-					} 
-					else 
-					{
-						message.channel.send("Can't delete the file, perhaps a lack of permissions?");
-					}
+					message.channel.send(`Now playing **${streamURL.split('/').pop()}** from **${message.author.username}**!`);
+					message.delete(1000);
 				}).catch(console.log);
 			}
 			else
@@ -167,12 +161,15 @@ function replaceface(message, args)
 		// If it's not a PNG, we need to convert it for transparency to work.
 		if(imageFileName.toUpperCase().substr(imageFileName.length - 3) === "PNG")
 		{
+			// It's PNG, supports RGBA, continue.
 			handleFaces(message, imageFileName);
 		}
 		else 
 		{
+			// Convert the other image into PNG, perhaps inneficient for other formats that support transparency. Will deal with at a later date.
 			gm(imageFileName).write(path.parse(imageFileName).name + ".png", (err) => {
 				if(err) throw err;
+				// Changes the image file name to support it's new name.
 				imageFileName = path.parse(imageFileName).name + ".png";
 				handleFaces(message, imageFileName);
 			});
@@ -183,38 +180,36 @@ function replaceface(message, args)
 
 function handleFaces(message, arg)
 {
-	console.log("HANDLE" + arg);
 	cv.readImage(arg, function(err, im) {
-			// When all object detection is done, not just after every one. Whoops.
+			// When all object detection is done, not just after every one.
 			im.detectObject(cv.FACE_CASCADE, {}, function(err, faces) {
-				//console.log(faces);
 				// Do all processing here, kinda annoying with the way async JS works, but I'll manage.
-
-
 				let repImage = Jimp.read(arg).then( (image) => {
 					let faceImagePromises = [];
 					
 					for(i = 0; i < faces.length; i++)
 					{
+						// Jimp.read returns a promise, so I can add all those to an array and wait for them all to be done later.
 						faceImagePromises.push(Jimp.read(faceList[Math.floor(Math.random()*faceList.length)]));
 					}
 
+					// Process all the promises.
 					Promise.all(faceImagePromises).then( arguments => {
-						// arguments[0] is the image object, returned by the original Jimp.read() promise.
+						// arguments[x] is the image object, returned by the original Jimp.read() promise at that point in the array(not particularly concerned about order in this case, it's random anyway).
 						for(x = 0; x < faceImagePromises.length; x++)
 						{
-
-
+							// Scales the random face to fit a detected face in the main picture.
 							arguments[x].scaleToFit(faces[x]["width"], faces[x]["height"]);
+							// Composites the image and not blit, blit ignores A in RGBA.
 							image.composite(arguments[x], faces[x]["x"], faces[x]["y"]);
-
 						}
 					}).then( () => {
 						image.write(arg, () => {
-							console.log("DAR SHE BLOWS:" + arg);
+							// Send the file after all processing is done.
 							message.channel.send({ files : [arg]});								
 						});
 					}).catch( (err) => {
+						message.channel.send("Some sort of error processing the image.");
 						console.err(err);
 					});
 				});
@@ -235,8 +230,11 @@ function play(message, args)
 
 	let ytdlStream = ytdl(args[0], {
 		filter : 'audioonly',
+	}).on("error", (error) => {
+		message.channel.send("There was an error with the URL stream.");
+		console.log(error);
 	});
-
+	
 	if(message.member.voiceChannel) 
 	{
 		message.member.voiceChannel.join().then(connection => {
