@@ -98,6 +98,7 @@ function trump(message, args)
 }
 
 function play(message, args) 
+{
 	// Do the same checks on all voice commands.
 	if(!message.guild) return; 
 
