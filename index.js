@@ -251,13 +251,16 @@ function play(message, args)
 
 function stop(message, args)
 {
-	message.channel.send("Stopping current audio stream.");
-	message.member.voiceChannel.leave();
+	if(message.member.voiceChannel.connection)
+	{
+		message.channel.send("Stopping current audio stream.");
+		message.member.voiceChannel.leave();
+	}
 }
 
 function pause(message, args)
 {
-	if(	message.member.voiceChannel.connection )
+	if(message.member.voiceChannel.connection)
 	{
 		message.channel.send("Pausing current audio stream.");
 		message.member.voiceChannel.connection.dispatcher.pause();
@@ -265,7 +268,7 @@ function pause(message, args)
 }
 
 function resume(message, args)
-{	if(	message.member.voiceChannel.connection )
+{	if(message.member.voiceChannel.connection)
 	{
 		message.channel.send("Resuming current audio stream.");
 		message.member.voiceChannel.connection.dispatcher.resume();	
