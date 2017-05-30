@@ -9,14 +9,17 @@ const fs = require('fs');
 const gm = require('gm');
 const path = require('path');
 
-client.login(process.env.DISCORD_API_KEY);
 
 // ALL allowed exts need to be 4 characters to allow for playing of 4-length extensions, until I think of a better solution(if there is one).
 const allowedExtensions = [".MP3", ".OGG", ".WAV", "FLAC", "MIDI", ".WMA", ".M4A"];
+const allowedImageExtensions = [".PNG", ".JPG", "JPEG"];
+
 const commandList = ["trump", "play", "stop", "pause", "resume", "replaceface"];
 const faceList = glob.sync("faces/*.*");
 const prefix = "?";
 const streamVolume = 0.25;
+
+client.login(process.env.DISCORD_API_KEY);
 
 client.on('message', (message) => {
 	// Slice the first arg so we only get the arguments.
@@ -70,6 +73,8 @@ function checkCommand(message, command)
 
 function checkToPlayAttachment(message)
 {
+	if(message.member.id == client.user.id)
+		return;
 	// Gets the URL of the attachment to check if it's an audio URL, and if it is, start a stream with it.
 	let streamURL = message.attachments.first().url;
 	console.log(streamURL);
@@ -96,6 +101,14 @@ function checkToPlayAttachment(message)
 				// If the uploader is not in a voice channel, let them know.
 				message.channel.send("You need to be in a voice channel to play an audio file.");
 			}
+		}
+		else if(allowedImageExtensions.includes(streamURL.substr(streamURL.length - 4).toUpperCase()) && !message.member.bot)
+		{
+			if(message.member.bot) return;
+			// Make this an array because replaceface assumes an array.
+			let url = [streamURL];
+			replaceface(message, url);
+			return;
 		}
 	}
 }
@@ -169,6 +182,7 @@ function replaceface(message, args)
 			// Convert the other image into PNG, perhaps inneficient for other formats that support transparency. Will deal with at a later date.
 			gm(imageFileName).write(path.parse(imageFileName).name + ".png", (err) => {
 				if(err) throw err;
+				fs.unlink(imageFileName);
 				// Changes the image file name to support it's new name.
 				imageFileName = path.parse(imageFileName).name + ".png";
 				handleFaces(message, imageFileName);
@@ -206,7 +220,9 @@ function handleFaces(message, arg)
 					}).then( () => {
 						image.write(arg, () => {
 							// Send the file after all processing is done.
-							message.channel.send({ files : [arg]});								
+							message.channel.send({ files : [arg]}).then(() => {
+								fs.unlink(arg);
+							});								
 						});
 					}).catch( (err) => {
 						message.channel.send("Some sort of error processing the image.");
