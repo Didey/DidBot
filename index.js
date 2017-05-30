@@ -19,6 +19,8 @@ const faceList = glob.sync("faces/*.*");
 const prefix = "?";
 const streamVolume = 0.25;
 
+let commands = { };
+
 client.login(process.env.DISCORD_API_KEY);
 
 client.on('message', (message) => {
@@ -36,39 +38,24 @@ client.on('message', (message) => {
 function processCommands(message, args)
 {
 	
-	if(checkCommand(message, "trump"))
+	if(message.content.indexOf(' ') != -1)
 	{
-		trump(message, args);
-	}
-	else if(checkCommand(message, "play")) 
-	{
-		play(message, args);
-	}
-	else if(checkCommand(message, "stop")) 
-	{
-		stop(message, args);
-	}
-	else if(checkCommand(message, "pause")) 
-	{
-		pause(message, args);
-	}
-	else if(checkCommand(message, "resume")) 
-	{
-		resume(message, args);
+		let commandStr = message.content.substr(0, message.content.indexOf(' '));
+		let funcName = commandStr.substr(1, commandStr.length);
+		if(commandList.includes(funcName))
+		{
+			console.log(funcName)
+			commands[funcName](message, args);
+		}
 	} 
-	else if(checkCommand(message, "help"))
+	else 
 	{
-		help(message, args);
+		let commandStr = message.content.substr(1, message.content.length);
+		if(commandList.includes(commandStr))
+		{
+			commands[commandStr](message, args);
+		}
 	}
-	else if(checkCommand(message, "replaceface"))
-	{
-		replaceface(message, args);
-	}
-}
-
-function checkCommand(message, command)
-{
-	return message.content.startsWith(prefix + command);
 }
 
 function checkToPlayAttachment(message)
@@ -119,7 +106,7 @@ function checkToPlayAttachment(message)
 *
 */
 
-function help(message, args)
+commands.help = function help(message, args)
 {
 	let reply = "```\nDideyBot version 0.0.1, prefix: " + prefix + "\n**COMMANDS**\n";
 	for(i = 0; i < commandList.length; i++)
@@ -130,7 +117,7 @@ function help(message, args)
 
 }
 
-function trump(message, args)
+commands.trump = function trump(message, args)
 {
 	// Doing voice requires being in a voice channel. User not in a channel? Dont look at it.
 	if(!message.guild) return; 
@@ -165,7 +152,7 @@ function trump(message, args)
 	}
 }
 
-function replaceface(message, args)
+commands.replaceface = function replaceface(message, args)
 {
 	let imageFileName = args[0].split('/').pop();
 	console.log(imageFileName);
@@ -233,7 +220,7 @@ function handleFaces(message, arg)
 		})
 }
 
-function play(message, args) 
+commands.play = function play(message, args) 
 {
 	// Do the same checks on all voice commands.
 	if(!message.guild) return; 
@@ -265,7 +252,7 @@ function play(message, args)
 	
 }
 
-function stop(message, args)
+commands.stop = function stop(message, args)
 {
 	if(message.member.voiceChannel.connection)
 	{
@@ -274,7 +261,7 @@ function stop(message, args)
 	}
 }
 
-function pause(message, args)
+commands.pause = function pause(message, args)
 {
 	if(message.member.voiceChannel.connection)
 	{
@@ -283,7 +270,7 @@ function pause(message, args)
 	}
 }
 
-function resume(message, args)
+commands.resume = function resume(message, args)
 {	if(message.member.voiceChannel.connection)
 	{
 		message.channel.send("Resuming current audio stream.");
