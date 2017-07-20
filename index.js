@@ -9,24 +9,37 @@ const fs = require('fs');
 const gm = require('gm');
 const path = require('path');
 
-
 // ALL allowed exts need to be 4 characters to allow for playing of 4-length extensions, until I think of a better solution(if there is one).
 const allowedExtensions = [".MP3", ".OGG", ".WAV", "FLAC", "MIDI", ".WMA", ".M4A"];
 const allowedImageExtensions = [".PNG", ".JPG", "JPEG"];
 
-const commandList = ["trump", "play", "stop", "pause", "resume", "replaceface"];
+const commandList = ["replay", "help", "trump", "play", "stop", "pause", "resume", "replaceface", "strike", "sebz", "clear"];
 const faceList = glob.sync("faces/*.*");
 const prefix = "?";
-const streamVolume = 0.25;
+const streamVolume = 0.50;
 
 let commands = { };
+let lastStreamURLs = { };
+let strikeList = { };
 
-client.login(process.env.DISCORD_API_KEY);
+client.login("MzExNjAzMjI1Mjg1MzYxNjY0.DBV6Ig.Y-Nz-8vH6k79DjCLMn142UshNHU").then( (err) => {
+	if(err) throw err;
+	
+	console.log("login success");
+}).catch( (err) => {
+	console.log(err);
+});
+
+client.on("debug", message => {
+    console.log(message); 
+});
 
 client.on('message', (message) => {
-	// Slice the first arg so we only get the arguments.
-	let args = message.content.split(" ").slice(1);
+       // Slice the first arg so we only get the arguments.
+       let args = message.content.split(" ").slice(1);
 
+	console.log('message');
+	
 	// If there are any attachments, check if they are playable audio files.
 	if(message.attachments.first())
 		checkToPlayAttachment(message);
@@ -38,9 +51,11 @@ client.on('message', (message) => {
 function processCommands(message, args)
 {
 	
-	if(message.content.indexOf(' ') != -1)
+    let commandCheck = message.content.toLowerCase();
+
+    if(commandCheck.indexOf(' ') != -1)
 	{
-		let commandStr = message.content.substr(0, message.content.indexOf(' '));
+		let commandStr = commandCheck.substr(0, commandCheck.indexOf(' '));
 		let funcName = commandStr.substr(1, commandStr.length);
 		if(commandList.includes(funcName))
 		{
@@ -50,7 +65,7 @@ function processCommands(message, args)
 	} 
 	else 
 	{
-		let commandStr = message.content.substr(1, message.content.length);
+		let commandStr = commandCheck.substr(1, commandCheck.length);
 		if(commandList.includes(commandStr))
 		{
 			commands[commandStr](message, args);
@@ -81,6 +96,7 @@ function checkToPlayAttachment(message)
 					voiceDispatch.setVolume(streamVolume);
 					message.channel.send(`Now playing **${streamURL.split('/').pop()}** from **${message.author.username}**!`);
 					message.delete(1000);
+					lastStreamURLs[message.member.guild.id] = streamURL;
 				}).catch(console.log);
 			}
 			else
@@ -94,7 +110,7 @@ function checkToPlayAttachment(message)
 			if(message.member.bot) return;
 			// Make this an array because replaceface assumes an array.
 			let url = [streamURL];
-			replaceface(message, url);
+			commands["replaceface"](message, url);
 			return;
 		}
 	}
@@ -117,12 +133,23 @@ commands.help = function help(message, args)
 
 }
 
+commands.testfile = function testfile(message, args)
+{
+    console.log("UP");
+    message.member.voiceChannel.join().then(connection => {
+	let stream = fs.createReadStream("./banned.mp3");
+	let voiceDispatch = connection.playStream(stream, { passes: 5});
+	voiceDispatch.setVolume(streamVolume);
+    }).catch(console.log);
+}
+
 commands.trump = function trump(message, args)
 {
-	// Doing voice requires being in a voice channel. User not in a channel? Dont look at it.
+    // Doing voice requires being in a voice channel.
+    // User not in a channel? Dont look at it.
 	if(!message.guild) return; 
 	
-	// Nothing in the arguments section? Return. Don't waste our precious CPU cycles.
+	// Nothing in the arguments section, return.
 	if(!args[0]) 
 	{
 		message.channel.send("You need to specify something for Donald to say.");
@@ -144,12 +171,66 @@ commands.trump = function trump(message, args)
 		message.member.voiceChannel.join().then(connection => {
 			let voiceDispatch = connection.playArbitraryInput(trumpURL);
 			voiceDispatch.setVolume(streamVolume);
+			lastStreamURLs[message.member.guild.id] = trumpURL;
 		}).catch(console.log);
 	}
 	else
 	{
 		message.channel.send("You need to be in a voice channel to make Donald say something.");
 	}
+}
+
+client.on("guildBanAdd", (guild, user) => {
+    console.log("user got banned");
+    for(var channel in guild.channels) {
+	if(channel.type == "text") {
+	    channel.sendMessage(`User ${user.username} has been banned from the server.`);
+	    channel.sendMessage("http://i.imgur.com/q0lsbeX.png");
+	    console.log("lol, should have sent message");
+	}
+    }
+    
+    if(guild.voiceConnection) {
+	console.log("make one");
+	let connection = guild.voiceConnection;
+	let voiceDispatch = connection.playFile("./banned.mp3");
+	voiceDispatch.setVolume(streamVolume);
+    }
+});
+
+commands.replay = function replay(message, args)
+{
+	if(!message.guild) return;
+
+
+	console.log(lastStreamURLs[message.member.guild.id]);
+	if(lastStreamURLs[message.member.guild.id])
+	{
+		
+		let lastURL = lastStreamURLs[message.member.guild.id];
+		if(lastURL.includes("trump") || lastURL.includes("discord"))
+		{
+			message.member.voiceChannel.join().then(connection => {
+				voiceDispatch = connection.playArbitraryInput(lastURL);
+				voiceDispatch.setVolume(streamVolume);
+			});
+		}
+		else
+		{
+			let args = [lastURL];
+			commands["play"](message, args);
+		}
+		message.channel.send("Playing the last audio stream that was played...")
+	}
+	else
+	{
+		message.channel.send("There hasn't been something played on this server yet!");
+	}	
+}
+
+commands.clear = function clear(message, args)
+{
+    message.channel.bulkDelete(parseInt(args[0]));
 }
 
 commands.replaceface = function replaceface(message, args)
@@ -200,7 +281,7 @@ function handleFaces(message, arg)
 						for(x = 0; x < faceImagePromises.length; x++)
 						{
 							// Scales the random face to fit a detected face in the main picture.
-							arguments[x].scaleToFit(faces[x]["width"], faces[x]["height"]);
+							arguments[x].scaleToFit(faces[x]["width"] * 2, faces[x]["height"]);
 							// Composites the image and not blit, blit ignores A in RGBA.
 							image.composite(arguments[x], faces[x]["x"], faces[x]["y"]);
 						}
@@ -231,11 +312,21 @@ commands.play = function play(message, args)
 		return message.channel.send("You need to put a URL to play from.");
 	}
 
+        if(!args[0].includes('youtube')) {
+	        return message.channel.send("You can only play videos from YouTube.");
+        }
+    
 	let ytdlStream = ytdl(args[0], {
 		filter : 'audioonly',
-	}).on("error", (error) => {
-		message.channel.send("There was an error with the URL stream.");
-		console.log(error);
+	}).on('response', (response) => {
+		if(response["statusCode"] != 200)
+		{
+			// There's an error with the request.
+			message.channel.send("There was an error with the request, perhaps a malformed URL?");
+			return;
+		}	
+	}).on('error', (err) => {
+		console.log(err);
 	});
 	
 	if(message.member.voiceChannel) 
@@ -243,6 +334,7 @@ commands.play = function play(message, args)
 		message.member.voiceChannel.join().then(connection => {
 			let voiceDispatch = connection.playStream(ytdlStream);
 			voiceDispatch.setVolume(streamVolume);
+			lastStreamURLs[message.member.guild.id] = args[0];
 		}).catch(console.log);
 	}
 	else
@@ -250,6 +342,80 @@ commands.play = function play(message, args)
 		message.channel.send("You need to be in a voice channel to play something.");
 	}
 	
+}
+
+commands.sebz = function sebz(message, args)
+{
+    let ytdlStream = ytdl("https://www.youtube.com/watch?v=Xy6DB1Z5AfU&feature=youtu.be", {
+	filter: 'audioonly'
+    }).on('response', response => {
+	if(response["statusCode"] != 200)
+	{
+	    return message.channel.send("There was an error with youtube.");
+	}
+    }).on('error', err => {
+	console.log(err);
+    });
+    if(message.member.voiceChannel)
+    {
+	message.member.voiceChannel.join().then(connection => {
+	    let voiceDispatch = connection.playStream(ytdlStream);
+	    voiceDispatch.setVolume(streamVolume);
+	}).catch(console.log);
+    }
+    else
+    {
+	message.channel.send("You need to be in a voice channel to roast sebz.");
+    }
+}
+
+commands.strike = function strike(message, args)
+{
+
+    if(!message.guild)
+	return message.channel.send("You need to be in a voice channel to administer strikes, kid.");
+    
+    if(!args[0])
+	return message.channel.send("You need to put a name to shame.");
+    
+    let id = args[0].substring(2, args[0].length - 1);
+    
+    if(!strikeList[id])
+	strikeList[id] = 0;
+
+    strikeList[id]++;
+
+    console.log("STRKNUM " + strikeList[id]);
+    let url;
+ 
+    if(strikeList[id] == 1) {
+	url = "https://www.youtube.com/watch?v=pOuSeiNirqs";	
+    } else if(strikeList[id] == 2) {
+	url = "https://www.youtube.com/watch?v=LmzNISONc7w";
+    } else if(strikeList[id] == 3) {
+	url = "https://www.youtube.com/watch?v=0Iuvu7ZCSx0&feature=youtu.be";
+    }
+    
+    stream = ytdl(url, {
+	filter : 'audioonly',
+    }).on('error', err => {
+	console.log(err);
+    });
+
+    if(message.member.voiceChannel)
+    {
+	message.member.voiceChannel.join().then(connection => {
+	    let voiceDispatch = connection.playStream(stream);
+	    voiceDispatch.setVolume(streamVolume);
+	}).catch(console.log);
+    }
+    
+    if(strikeList[message.member.id] == 3) {
+	message.channel.send(`STRIKE 3, YOU ARE OUTTA HERE <@${id}>!`);
+	strikeList[id] = 0;
+    } else {
+	message.channel.send(`STTTTTTTTTTTTTTTTTTTTTTTTTTRRRRRRRRRRRRRRRRRRRRRRRRRRRRRRIIIIIIKE ${strikeList[id]}, <@${id}>!`);
+    }
 }
 
 commands.stop = function stop(message, args)
