@@ -11,7 +11,13 @@
   "dependencies": {
     "discord.js": "^11.1.0",
     "discord.js-commando": "^0.9.0",
+    "faced": "^1.2.0",
+    "glob": "^7.1.2",
+    "gm": "^1.23.0",
+    "google-tts-api": "0.0.1",
     "jimp": "^0.2.27",
+    "node-opencv": "^1.0.1",
+    "opencv": "^6.0.0",
     "opusscript": "0.0.3",
     "ytdl-core": "^0.14.0"
   }
